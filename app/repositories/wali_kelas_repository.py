@@ -1,0 +1,15 @@
+"""
+Concrete repository for Wali Kelas (Homeroom Teacher) data.
+Uses (guru_id) as the primary key.
+"""
+
+import os
+
+from app.config import get_settings
+from app.repositories.base_repository import BaseCSVRepository
+
+
+class WaliKelasRepository(BaseCSVRepository):
+    def __init__(self) -> None:
+        csv_path = os.path.join(get_settings().DATA_DIR, "wali_kelas.csv")
+        super().__init__(csv_path=csv_path, id_column="guru_id")
