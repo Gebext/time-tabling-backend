@@ -1,66 +1,87 @@
-"""
-Pydantic schemas for Schedule generation request/response.
-"""
-
 from pydantic import BaseModel, Field
 
-
 class ScheduleRequest(BaseModel):
-    """Parameter untuk menjalankan algoritma penjadwalan hybrid GA-GWO."""
+
     population_size: int = Field(default=50, ge=5, le=500, examples=[50])
+
     max_iterations: int = Field(default=500, ge=10, le=10000, examples=[500])
+
     tournament_size: int = Field(default=15, ge=3, le=100, examples=[15])
+
     gwo_interval: int = Field(
+
         default=20, ge=5, le=100, examples=[20],
+
         description="Setiap berapa generasi GA, fase GWO dijalankan",
-    )
-    gwo_iterations: int = Field(
-        default=20, ge=1, le=100, examples=[20],
-        description="Jumlah iterasi GWO per fase",
+
     )
 
+    gwo_iterations: int = Field(
+
+        default=20, ge=1, le=100, examples=[20],
+
+        description="Jumlah iterasi GWO per fase",
+
+    )
 
 class ScheduleStatusResponse(BaseModel):
-    """Status proses penjadwalan."""
+
     status: str = Field(..., examples=["running"], description="idle | running | completed | failed")
+
     progress: float = Field(default=0.0, ge=0.0, le=100.0, description="Persentase progress")
+
     best_fitness: float | None = Field(default=None, description="Nilai fitness terbaik saat ini")
+
     message: str = ""
 
-
 class ScheduleSlotDetail(BaseModel):
-    """Detail satu slot dalam jadwal."""
+
     slot_id: int
+
     hari: str
+
     jam_mulai: str
+
     jam_selesai: str
+
     mapel_id: int
+
     mapel_nama: str
+
     guru_id: int
+
     guru_nama: str
 
-
 class ScheduleKelasResult(BaseModel):
-    """Hasil jadwal untuk satu kelas."""
+
     kelas_id: int
+
     kelas_nama: str
+
     jadwal: list[ScheduleSlotDetail] = []
 
-
 class ScheduleResult(BaseModel):
-    """Hasil keseluruhan penjadwalan."""
+
     fitness: float
+
     total_conflicts: int
+
     detail_per_kelas: list[ScheduleKelasResult] = []
 
-
 class FitnessDetail(BaseModel):
-    """Rincian komponen nilai fitness."""
+
     guru_bentrok: float = 0.0
+
     distribusi_mapel: float = 0.0
+
     konsistensi_guru_mapel: float = 0.0
+
     durasi_guru: float = 0.0
+
     waktu_mgmp: float = 0.0
+
     mapel_siang: float = 0.0
+
     cek_wali_kelas: float = 0.0
+
     total: float = 0.0
