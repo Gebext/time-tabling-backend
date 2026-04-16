@@ -18,7 +18,9 @@ from app.algorithm.gwo import GreyWolfOptimizer
 
 from app.algorithm.repair import RepairOperator
 
-from app.core.exceptions import AlgorithmException
+from app.core.exceptions import AlgorithmException, NotFoundException
+
+from app.repositories.schedule_repository import ScheduleRepository
 
 from app.core.logging import get_logger
 
@@ -46,9 +48,11 @@ DEFAULT_GWO_ITERATIONS = 20
 
 class ScheduleService:
 
-    def __init__(self, data_dict: DataDictionary) -> None:
+    def __init__(self, data_dict: DataDictionary, schedule_repo: ScheduleRepository) -> None:
 
         self._data_dict = data_dict
+
+        self._schedule_repo = schedule_repo
 
         self._status: str = "idle"
 
@@ -60,71 +64,60 @@ class ScheduleService:
 
         self._error_message: str = ""
 
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         self._fitness_log: list[dict[str, Any]] = []
 
+        self._cancel_event = threading.Event()
+        self._current_run_id: int = 0
+
+    def _get_status_response(self) -> ScheduleStatusResponse:
+        """Helper to create response while holding lock."""
+        return ScheduleStatusResponse(
+            status=self._status,
+            progress=self._progress,
+            best_fitness=self._best_fitness,
+            message=self._error_message,
+        )
+
     def generate(self, params: ScheduleRequest) -> ScheduleStatusResponse:
-
         with self._lock:
-
             if self._status == "running":
-
-                return self.get_status()
+                return self._get_status_response()
 
             self._status = "running"
-
             self._progress = 0.0
-
             self._best_fitness = None
-
             self._result = None
-
             self._error_message = ""
-
             self._fitness_log = []
+            self._cancel_event.clear()
 
-        thread = threading.Thread(
+            thread = threading.Thread(
+                target=self._run_algorithm,
+                args=(params,),
+                daemon=True,
+            )
+            thread.start()
+            logger.info(
+                "Schedule generation started: pop=%d, iter=%d, tourn=%d",
+                params.population_size,
+                params.max_iterations,
+                params.tournament_size,
+            )
+            return self._get_status_response()
 
-            target=self._run_algorithm,
-
-            args=(params,),
-
-            daemon=True,
-
-        )
-
-        thread.start()
-
-        logger.info(
-
-            "Schedule generation started: pop=%d, iter=%d, tourn=%d",
-
-            params.population_size,
-
-            params.max_iterations,
-
-            params.tournament_size,
-
-        )
-
-        return self.get_status()
+    def cancel(self) -> ScheduleStatusResponse:
+        with self._lock:
+            if self._status == "running":
+                self._cancel_event.set()
+                self._error_message = "Generation stop requested. Saving best result..."
+                logger.info("Schedule generation stop requested (cancel event set)")
+            return self._get_status_response()
 
     def get_status(self) -> ScheduleStatusResponse:
-
         with self._lock:
-
-            return ScheduleStatusResponse(
-
-                status=self._status,
-
-                progress=self._progress,
-
-                best_fitness=self._best_fitness,
-
-                message=self._error_message,
-
-            )
+            return self._get_status_response()
 
     def get_latest_result(self) -> ScheduleResult:
 
@@ -164,17 +157,27 @@ class ScheduleService:
 
             gwo_iterations = params.gwo_iterations
 
+            current_run_id = random.getrandbits(32)
+            with self._lock:
+                self._current_run_id = current_run_id
+
             logger.info("Generating initial population of %d...", pop_size)
 
             pop_mapel, pop_guru = constructor.generate_population(pop_size)
+
+            if self._cancel_event.is_set():
+                with self._lock:
+                    if self._current_run_id == current_run_id:
+                        self._status = "cancelled"
+                return
 
             hasil_pop = evaluator.evaluasi_populasi(pop_mapel, pop_guru)
 
             best_fitness = float("inf")
 
-            best_mapel: np.ndarray | None = None
+            best_mapel_ref: np.ndarray | None = None
 
-            best_guru: np.ndarray | None = None
+            best_guru_ref: np.ndarray | None = None
 
             initial_best = min(hasil_pop, key=lambda x: x["fitness"])
 
@@ -184,16 +187,20 @@ class ScheduleService:
 
                 idx = initial_best["index"]
 
-                best_mapel = pop_mapel[idx].copy()
+                best_mapel_ref = pop_mapel[idx].copy()
 
-                best_guru = pop_guru[idx].copy()
+                best_guru_ref = pop_guru[idx].copy()
 
             logger.info("Initial best fitness: %s", best_fitness)
 
             for gen in range(max_iter):
+                if self._cancel_event.is_set():
+                    logger.info("Generation cancelled at generation %d, finishing with best so far", gen)
+                    break
 
                 with self._lock:
-
+                    if self._current_run_id != current_run_id:
+                        return
                     self._progress = (gen / max_iter) * 100
 
                     self._best_fitness = best_fitness
@@ -203,6 +210,8 @@ class ScheduleService:
                 new_pop_guru_list: list[np.ndarray] = []
 
                 while len(new_pop_mapel_list) < pop_size:
+                    if self._cancel_event.is_set():
+                        break
 
                     p1_mapel, p1_guru = ga.tournament_selection(
 
@@ -252,6 +261,9 @@ class ScheduleService:
 
                         new_pop_guru_list.append(c2_guru)
 
+                if self._cancel_event.is_set():
+                    break
+
                 pop_mapel = np.array(new_pop_mapel_list)
 
                 pop_guru = np.array(new_pop_guru_list)
@@ -263,6 +275,8 @@ class ScheduleService:
                     logger.info("GWO phase at generation %d", gen)
 
                     for iter_gwo in range(gwo_iterations):
+                        if self._cancel_event.is_set():
+                            break
 
                         pop_mapel, pop_guru = gwo.run_gwo(
 
@@ -283,6 +297,11 @@ class ScheduleService:
                             "GWO Iter %d Best: %s", iter_gwo, best_gwo
 
                         )
+                        if best_gwo == 0:
+                            break
+
+                if self._cancel_event.is_set():
+                    break
 
                 gen_best = min(hasil_pop, key=lambda x: x["fitness"])
 
@@ -298,9 +317,9 @@ class ScheduleService:
 
                     idx = gen_best["index"]
 
-                    best_mapel = pop_mapel[idx].copy()
+                    best_mapel_ref = pop_mapel[idx].copy()
 
-                    best_guru = pop_guru[idx].copy()
+                    best_guru_ref = pop_guru[idx].copy()
 
                 if gen % 10 == 0:
 
@@ -330,33 +349,52 @@ class ScheduleService:
 
                 )
 
-            assert best_mapel is not None and best_guru is not None
+                if best_fitness == 0:
+                    logger.info("Perfect solution found at generation %d!", gen)
+                    break
+
+            if best_mapel_ref is None or best_guru_ref is None:
+                with self._lock:
+                    if self._current_run_id == current_run_id:
+                        self._status = "cancelled"
+                return
 
             final_fitness, final_evaluasi = evaluator.evaluate(
 
-                best_mapel, best_guru
+                best_mapel_ref, best_guru_ref
 
             )
 
             result_data = self._format_result(
 
-                best_mapel, best_guru, final_fitness, final_evaluasi
+                best_mapel_ref, best_guru_ref, final_fitness, final_evaluasi
+
+            )
+
+            self._schedule_repo.save(
+
+                detail_per_kelas=result_data["detail_per_kelas"],
+
+                fitness=result_data["fitness"],
+
+                total_conflicts=result_data["total_conflicts"],
 
             )
 
             with self._lock:
-
-                self._progress = 100.0
-
-                self._best_fitness = final_fitness
-
-                self._status = "completed"
-
-                self._result = result_data
+                if self._current_run_id == current_run_id:
+                    self._progress = 100.0
+                    self._best_fitness = final_fitness
+                    self._status = "completed"
+                    self._result = result_data
+                    if self._cancel_event.is_set():
+                        self._error_message = "Generation stopped by user. Best solution kept."
 
             logger.info(
 
-                "Schedule generation completed. Best fitness: %s",
+                "Schedule generation %s. Best fitness: %s",
+
+                "stopped" if self._cancel_event.is_set() else "completed",
 
                 final_fitness,
 
@@ -531,3 +569,37 @@ class ScheduleService:
             "detail_per_kelas": detail_per_kelas,
 
         }
+
+    def get_saved_schedules(self) -> list[dict[str, Any]]:
+
+        return self._schedule_repo.get_all_summaries()
+
+    def get_saved_schedule(self, schedule_id: int) -> dict[str, Any]:
+
+        try:
+
+            return self._schedule_repo.get_by_id(schedule_id)
+
+        except FileNotFoundError as e:
+
+            raise NotFoundException("Schedule", schedule_id) from e
+
+    def get_schedule_csv_path(self, schedule_id: int) -> str:
+
+        try:
+
+            return self._schedule_repo.get_csv_path(schedule_id)
+
+        except FileNotFoundError as e:
+
+            raise NotFoundException("Schedule", schedule_id) from e
+
+    def delete_saved_schedule(self, schedule_id: int) -> None:
+
+        try:
+
+            self._schedule_repo.delete(schedule_id)
+
+        except FileNotFoundError as e:
+
+            raise NotFoundException("Schedule", schedule_id) from e

@@ -14,6 +14,8 @@ from app.repositories.relasi_guru_mapel_repository import RelasiGuruMapelReposit
 
 from app.repositories.wali_kelas_repository import WaliKelasRepository
 
+from app.repositories.schedule_repository import ScheduleRepository
+
 from app.services.guru_service import GuruService
 
 from app.services.kelas_service import KelasService
@@ -110,6 +112,12 @@ def get_wali_kelas_service() -> WaliKelasService:
 
 @lru_cache()
 
+def get_schedule_repo() -> ScheduleRepository:
+
+    return ScheduleRepository()
+
+@lru_cache()
+
 def get_schedule_service() -> ScheduleService:
 
-    return ScheduleService(get_data_dictionary())
+    return ScheduleService(get_data_dictionary(), get_schedule_repo())

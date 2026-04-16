@@ -140,7 +140,7 @@ class DataDictionary:
 
     def mgmp_mapel(self) -> dict[int, int]:
 
-        mgmp = dict(zip(self.mapel_df["mapel_id"], self.mapel_df["MGMP"]))
+        mgmp = dict(zip(self.mapel_df["mapel_id"], self.mapel_df["mgmp"]))
 
         return {mid: self.HARI_MAP[hari] for mid, hari in mgmp.items()}
 

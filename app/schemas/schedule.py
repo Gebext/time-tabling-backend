@@ -26,7 +26,7 @@ class ScheduleRequest(BaseModel):
 
 class ScheduleStatusResponse(BaseModel):
 
-    status: str = Field(..., examples=["running"], description="idle | running | completed | failed")
+    status: str = Field(..., examples=["running"], description="idle | running | completed | failed | cancelled")
 
     progress: float = Field(default=0.0, ge=0.0, le=100.0, description="Persentase progress")
 
@@ -85,3 +85,43 @@ class FitnessDetail(BaseModel):
     cek_wali_kelas: float = 0.0
 
     total: float = 0.0
+
+class ScheduleSummary(BaseModel):
+
+    schedule_id: int
+
+    filename: str
+
+    fitness: float
+
+    total_conflicts: int
+
+    created_at: str
+
+class ScheduleRowDetail(BaseModel):
+
+    kelas_id: int
+
+    kelas_nama: str
+
+    slot_id: int
+
+    hari: str
+
+    jam_mulai: str
+
+    jam_selesai: str
+
+    mapel_id: int
+
+    mapel_nama: str
+
+    guru_id: int
+
+    guru_nama: str
+
+class ScheduleDetailResponse(BaseModel):
+
+    summary: ScheduleSummary
+
+    data: list[ScheduleRowDetail] = []
