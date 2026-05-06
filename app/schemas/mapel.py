@@ -12,9 +12,10 @@ class MapelBase(BaseModel):
 
     jam_per_minggu: int = Field(..., ge=1, le=10, examples=[4])
 
-class MapelCreate(MapelBase):
-
-    pass
+class MapelCreate(BaseModel):
+    nama_mapel: str = Field(..., min_length=1, max_length=200, examples=["MATEMATIKA"])
+    mgmp: str = Field(..., examples=["Senin"], description="Hari MGMP (Senin-Jumat)")
+    jam_per_minggu: int = Field(..., ge=1, le=10, examples=[4])
 
 class MapelUpdate(BaseModel):
 

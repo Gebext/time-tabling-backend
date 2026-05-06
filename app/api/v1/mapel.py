@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import get_mapel_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.mapel import MapelCreate, MapelUpdate, MapelResponse
 
@@ -10,13 +10,18 @@ from app.services.mapel_service import MapelService
 
 router = APIRouter(prefix="/mapel", tags=["Mapel"])
 
-@router.get("", response_model=BaseResponse[list[MapelResponse]], summary="Get all subjects")
+@router.get("", response_model=PaginatedResponse[MapelResponse], summary="Get all subjects (paginated)")
 
-async def get_all(service: MapelService = Depends(get_mapel_service)):
+async def get_all(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    q: str | None = Query(default=None, description="Search query"),
+    service: MapelService = Depends(get_mapel_service),
+):
 
-    data = service.get_all()
+    data, total = service.get_paginated(page, per_page, q)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} mapel")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} mapel")
 
 @router.get("/{mapel_id}", response_model=BaseResponse[MapelResponse], summary="Get subject by ID")
 

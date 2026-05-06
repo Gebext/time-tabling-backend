@@ -20,6 +20,14 @@ class RelasiGuruMapelService:
 
         return [RelasiGuruMapelResponse(**row) for row in rows]
 
+    def get_paginated(
+        self, page: int = 1, per_page: int = 10, search: str | None = None
+    ) -> tuple[list[RelasiGuruMapelResponse], int]:
+
+        rows, total = self._repo.get_paginated_filtered(page, per_page, search)
+
+        return [RelasiGuruMapelResponse(**row) for row in rows], total
+
     def get_by_guru(self, guru_id: int) -> list[RelasiGuruMapelResponse]:
 
         rows = self._repo.get_by_guru(guru_id)

@@ -1,3 +1,4 @@
+import json
 import os
 import threading
 from datetime import datetime
@@ -26,6 +27,7 @@ class ScheduleRepository:
                     "filename",
                     "fitness",
                     "total_conflicts",
+                    "conflict_details",
                     "created_at",
                 ]
             ).to_csv(SUMMARY_FILE, index=False)
@@ -36,6 +38,7 @@ class ScheduleRepository:
         detail_per_kelas: list[dict[str, Any]],
         fitness: float,
         total_conflicts: int,
+        conflict_details: dict[str, int] | None = None,
     ) -> dict[str, Any]:
         with self._lock:
             now = datetime.now()
@@ -73,6 +76,7 @@ class ScheduleRepository:
                 "filename": filename,
                 "fitness": fitness,
                 "total_conflicts": total_conflicts,
+                "conflict_details": json.dumps({k: int(v) for k, v in conflict_details.items()}) if conflict_details else "{}",
                 "created_at": now.isoformat(),
             }
             summary_df = pd.concat(
@@ -88,7 +92,56 @@ class ScheduleRepository:
             if not os.path.exists(SUMMARY_FILE):
                 return []
             df = pd.read_csv(SUMMARY_FILE)
-            return df.to_dict(orient="records")
+            records = df.to_dict(orient="records")
+            for rec in records:
+                cd = rec.get("conflict_details")
+                if isinstance(cd, str):
+                    try:
+                        rec["conflict_details"] = json.loads(cd)
+                    except (json.JSONDecodeError, TypeError):
+                        rec["conflict_details"] = {}
+                elif not isinstance(cd, dict):
+                    rec["conflict_details"] = {}
+            return records
+
+    def get_all_summaries_paginated(
+        self,
+        page: int = 1,
+        per_page: int = 10,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        with self._lock:
+            if not os.path.exists(SUMMARY_FILE):
+                return [], 0
+            df = pd.read_csv(SUMMARY_FILE)
+            if start_date:
+                start_dt = pd.to_datetime(start_date, errors="coerce")
+                if pd.notna(start_dt):
+                    created_at_series = pd.to_datetime(df["created_at"], errors="coerce")
+                    df = df[created_at_series >= start_dt]
+            if end_date:
+                end_dt = pd.to_datetime(end_date, errors="coerce")
+                if pd.notna(end_dt):
+                    created_at_series = pd.to_datetime(df["created_at"], errors="coerce")
+                    end_of_day = end_dt + pd.Timedelta(days=1) - pd.Timedelta(microseconds=1)
+                    df = df[created_at_series <= end_of_day]
+            df = df.sort_values("created_at", ascending=False).reset_index(drop=True)
+            total = len(df)
+            start = (page - 1) * per_page
+            end = start + per_page
+            sliced = df.iloc[start:end]
+            records = sliced.to_dict(orient="records")
+            for rec in records:
+                cd = rec.get("conflict_details")
+                if isinstance(cd, str):
+                    try:
+                        rec["conflict_details"] = json.loads(cd)
+                    except (json.JSONDecodeError, TypeError):
+                        rec["conflict_details"] = {}
+                elif not isinstance(cd, dict):
+                    rec["conflict_details"] = {}
+            return records, total
 
     def get_by_id(self, schedule_id: int) -> dict[str, Any]:
         with self._lock:
@@ -101,8 +154,17 @@ class ScheduleRepository:
             if not os.path.exists(filepath):
                 raise FileNotFoundError(f"File {entry['filename']} tidak ditemukan")
             schedule_df = pd.read_csv(filepath)
+            entry_dict = entry.to_dict() if hasattr(entry, 'to_dict') else dict(entry)
+            cd = entry_dict.get("conflict_details")
+            if isinstance(cd, str):
+                try:
+                    entry_dict["conflict_details"] = json.loads(cd)
+                except (json.JSONDecodeError, TypeError):
+                    entry_dict["conflict_details"] = {}
+            elif not isinstance(cd, dict):
+                entry_dict["conflict_details"] = {}
             return {
-                "summary": entry,
+                "summary": entry_dict,
                 "data": schedule_df.to_dict(orient="records"),
             }
 

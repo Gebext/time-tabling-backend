@@ -14,6 +14,14 @@ class SlotService:
 
         return [SlotResponse(**row) for row in rows]
 
+    def get_paginated(
+        self, page: int = 1, per_page: int = 10, search: str | None = None
+    ) -> tuple[list[SlotResponse], int]:
+
+        rows, total = self._repo.get_paginated_filtered(page, per_page, search)
+
+        return [SlotResponse(**row) for row in rows], total
+
     def get_by_id(self, slot_id: int) -> SlotResponse:
 
         row = self._repo.get_by_id(slot_id, resource_name="Slot")

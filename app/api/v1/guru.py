@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import get_guru_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.guru import GuruCreate, GuruUpdate, GuruResponse
 
@@ -10,13 +10,18 @@ from app.services.guru_service import GuruService
 
 router = APIRouter(prefix="/guru", tags=["Guru"])
 
-@router.get("", response_model=BaseResponse[list[GuruResponse]], summary="Get all teachers")
+@router.get("", response_model=PaginatedResponse[GuruResponse], summary="Get all teachers (paginated)")
 
-async def get_all(service: GuruService = Depends(get_guru_service)):
+async def get_all(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    q: str | None = Query(default=None, description="Search query"),
+    service: GuruService = Depends(get_guru_service),
+):
 
-    data = service.get_all()
+    data, total = service.get_paginated(page, per_page, q)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} guru")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} guru")
 
 @router.get("/{guru_id}", response_model=BaseResponse[GuruResponse], summary="Get teacher by ID")
 

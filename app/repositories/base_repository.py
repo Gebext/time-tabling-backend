@@ -52,6 +52,42 @@ class BaseCSVRepository:
 
             return self._df.to_dict(orient="records")
 
+    def get_paginated(self, page: int = 1, per_page: int = 10) -> tuple[list[dict[str, Any]], int]:
+
+        with self._lock:
+            df = self._df
+            total = len(df)
+
+            start = (page - 1) * per_page
+
+            end = start + per_page
+
+            sliced = df.iloc[start:end]
+
+            return sliced.to_dict(orient="records"), total
+
+    def get_paginated_filtered(
+        self,
+        page: int = 1,
+        per_page: int = 10,
+        search: str | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        with self._lock:
+            df = self._df
+            if search and search.strip():
+                query = search.strip()
+                text_df = df.astype(str)
+                mask = text_df.apply(
+                    lambda col: col.str.contains(query, case=False, na=False, regex=False)
+                ).any(axis=1)
+                df = df[mask]
+
+            total = len(df)
+            start = (page - 1) * per_page
+            end = start + per_page
+            sliced = df.iloc[start:end]
+            return sliced.to_dict(orient="records"), total
+
     def get_by_id(self, record_id: int, resource_name: str = "Data") -> dict[str, Any]:
 
         with self._lock:

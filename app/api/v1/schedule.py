@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from fastapi.responses import FileResponse
 
 from app.dependencies import get_schedule_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.schedule import (
 
@@ -91,17 +91,23 @@ async def get_latest(service: ScheduleService = Depends(get_schedule_service)):
 
     "/saved",
 
-    response_model=BaseResponse[list[ScheduleSummary]],
+    response_model=PaginatedResponse[ScheduleSummary],
 
-    summary="List all saved schedules",
+    summary="List all saved schedules (paginated)",
 
 )
 
-async def list_saved(service: ScheduleService = Depends(get_schedule_service)):
+async def list_saved(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    start_date: str | None = Query(default=None, description="Filter tanggal mulai (YYYY-MM-DD)"),
+    end_date: str | None = Query(default=None, description="Filter tanggal akhir (YYYY-MM-DD)"),
+    service: ScheduleService = Depends(get_schedule_service),
+):
 
-    data = service.get_saved_schedules()
+    data, total = service.get_saved_schedules_paginated(page, per_page, start_date, end_date)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} jadwal tersimpan")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} jadwal tersimpan")
 
 @router.get(
 

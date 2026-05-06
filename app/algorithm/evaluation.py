@@ -1,5 +1,9 @@
 from collections import defaultdict
 
+from concurrent.futures import ThreadPoolExecutor
+
+import os
+
 from typing import Any
 
 import numpy as np
@@ -15,6 +19,10 @@ class Evaluator:
     def __init__(self, data_dict: DataDictionary) -> None:
 
         self._d = data_dict
+        cpu_count = os.cpu_count() or 1
+        self._max_workers = max(1, min(8, cpu_count))
+        # Hindari overhead paralel untuk populasi kecil.
+        self._parallel_threshold = 8
 
     def guru_bentrok(self, guru_matrix: np.ndarray) -> int:
 
@@ -260,25 +268,43 @@ class Evaluator:
 
     ) -> list[dict[str, Any]]:
 
-        hasil_populasi = []
+        ukuran_populasi = pop_mapel.shape[0]
+        if ukuran_populasi == 0:
+            return []
 
-        for i in range(pop_mapel.shape[0]):
+        if ukuran_populasi < self._parallel_threshold or self._max_workers == 1:
+            hasil_populasi = []
+            for i in range(ukuran_populasi):
+                evaluasi, fitness = self._evaluate_individual(pop_mapel[i], pop_guru[i])
+                hasil_populasi.append(
+                    {"fitness": fitness, "evaluasi": evaluasi, "index": i}
+                )
+            return hasil_populasi
 
-            mapel_matrix = pop_mapel[i]
-
-            guru_matrix = pop_guru[i]
-
-            evaluasi = self.evaluasi_individu(mapel_matrix, guru_matrix)
-
-            fitness = self.hitung_fitness(evaluasi)
-
-            hasil_populasi.append(
-
-                {"fitness": fitness, "evaluasi": evaluasi, "index": i}
-
+        # Paralel per-individu: aman karena tiap evaluasi independen.
+        with ThreadPoolExecutor(
+            max_workers=min(self._max_workers, ukuran_populasi)
+        ) as executor:
+            hasil = list(
+                executor.map(
+                    self._evaluate_individual,
+                    [pop_mapel[i] for i in range(ukuran_populasi)],
+                    [pop_guru[i] for i in range(ukuran_populasi)],
+                )
             )
 
+        hasil_populasi = []
+        for i, (evaluasi, fitness) in enumerate(hasil):
+            hasil_populasi.append({"fitness": fitness, "evaluasi": evaluasi, "index": i})
+
         return hasil_populasi
+
+    def _evaluate_individual(
+        self, mapel_matrix: np.ndarray, guru_matrix: np.ndarray
+    ) -> tuple[dict[str, int], float]:
+        evaluasi = self.evaluasi_individu(mapel_matrix, guru_matrix)
+        fitness = self.hitung_fitness(evaluasi)
+        return evaluasi, fitness
 
     @staticmethod
 

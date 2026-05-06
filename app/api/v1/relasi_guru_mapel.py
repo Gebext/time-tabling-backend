@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import get_relasi_guru_mapel_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.relasi_guru_mapel import RelasiGuruMapelCreate, RelasiGuruMapelResponse
 
@@ -10,13 +10,18 @@ from app.services.relasi_guru_mapel_service import RelasiGuruMapelService
 
 router = APIRouter(prefix="/relasi-guru-mapel", tags=["Relasi Guru-Mapel"])
 
-@router.get("", response_model=BaseResponse[list[RelasiGuruMapelResponse]], summary="Get all relations")
+@router.get("", response_model=PaginatedResponse[RelasiGuruMapelResponse], summary="Get all relations (paginated)")
 
-async def get_all(service: RelasiGuruMapelService = Depends(get_relasi_guru_mapel_service)):
+async def get_all(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    q: str | None = Query(default=None, description="Search query"),
+    service: RelasiGuruMapelService = Depends(get_relasi_guru_mapel_service),
+):
 
-    data = service.get_all()
+    data, total = service.get_paginated(page, per_page, q)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} relasi")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} relasi")
 
 @router.get("/guru/{guru_id}", response_model=BaseResponse[list[RelasiGuruMapelResponse]], summary="Get relations by teacher")
 

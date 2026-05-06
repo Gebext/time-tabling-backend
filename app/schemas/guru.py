@@ -4,8 +4,8 @@ class GuruBase(BaseModel):
     kode_guru: str = Field("G-?", min_length=1, max_length=50, examples=["G01"])
     nama_guru: str = Field(..., min_length=1, max_length=200, examples=["Budi Santoso, S.Pd."])
 
-class GuruCreate(GuruBase):
-    pass
+class GuruCreate(BaseModel):
+    nama_guru: str = Field(..., min_length=1, max_length=200, examples=["Budi Santoso, S.Pd."])
 
 class GuruUpdate(BaseModel):
     kode_guru: str | None = Field(None, min_length=1, max_length=50)

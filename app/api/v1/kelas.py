@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import get_kelas_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.kelas import KelasCreate, KelasUpdate, KelasResponse
 
@@ -10,13 +10,18 @@ from app.services.kelas_service import KelasService
 
 router = APIRouter(prefix="/kelas", tags=["Kelas"])
 
-@router.get("", response_model=BaseResponse[list[KelasResponse]], summary="Get all classes")
+@router.get("", response_model=PaginatedResponse[KelasResponse], summary="Get all classes (paginated)")
 
-async def get_all(service: KelasService = Depends(get_kelas_service)):
+async def get_all(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    q: str | None = Query(default=None, description="Search query"),
+    service: KelasService = Depends(get_kelas_service),
+):
 
-    data = service.get_all()
+    data, total = service.get_paginated(page, per_page, q)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} kelas")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} kelas")
 
 @router.get("/{kelas_id}", response_model=BaseResponse[KelasResponse], summary="Get class by ID")
 

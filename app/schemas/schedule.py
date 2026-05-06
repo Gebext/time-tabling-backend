@@ -34,6 +34,14 @@ class ScheduleStatusResponse(BaseModel):
 
     message: str = ""
 
+    conflict_details: dict[str, int] | None = Field(default=None, description="Detail breakdown konflik per tipe")
+
+    initial_fitness: float | None = Field(default=None, description="Nilai fitness terbaik sebelum optimasi")
+
+    initial_conflict_details: dict[str, int] | None = Field(
+        default=None, description="Detail konflik sebelum optimasi"
+    )
+
 class ScheduleSlotDetail(BaseModel):
 
     slot_id: int
@@ -64,7 +72,19 @@ class ScheduleResult(BaseModel):
 
     fitness: float
 
+    initial_fitness: float | None = None
+
+    fitness_improvement: float | None = None
+
+    fitness_improvement_percent: float | None = None
+
     total_conflicts: int
+
+    conflict_details: dict[str, int] = {}
+
+    initial_total_conflicts: int | None = None
+
+    initial_conflict_details: dict[str, int] | None = None
 
     detail_per_kelas: list[ScheduleKelasResult] = []
 
@@ -95,6 +115,8 @@ class ScheduleSummary(BaseModel):
     fitness: float
 
     total_conflicts: int
+
+    conflict_details: dict[str, int] = {}
 
     created_at: str
 

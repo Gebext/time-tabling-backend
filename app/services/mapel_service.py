@@ -16,6 +16,14 @@ class MapelService:
 
         return [MapelResponse(**row) for row in rows]
 
+    def get_paginated(
+        self, page: int = 1, per_page: int = 10, search: str | None = None
+    ) -> tuple[list[MapelResponse], int]:
+
+        rows, total = self._repo.get_paginated_filtered(page, per_page, search)
+
+        return [MapelResponse(**row) for row in rows], total
+
     def get_by_id(self, mapel_id: int) -> MapelResponse:
 
         row = self._repo.get_by_id(mapel_id, resource_name="Mapel")
@@ -29,6 +37,9 @@ class MapelService:
             raise ValidationException(f"MGMP harus salah satu dari: {HARI_VALID}")
 
         data = payload.model_dump()
+        rows = self._repo.get_all()
+        next_id = 1 if not rows else max(int(row["mapel_id"]) for row in rows) + 1
+        data["kode_mapel"] = f"M{next_id:03d}"
 
         created = self._repo.create(data)
 

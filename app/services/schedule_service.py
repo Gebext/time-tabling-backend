@@ -60,6 +60,12 @@ class ScheduleService:
 
         self._best_fitness: float | None = None
 
+        self._conflict_details: dict[str, int] | None = None
+
+        self._initial_fitness: float | None = None
+
+        self._initial_conflict_details: dict[str, int] | None = None
+
         self._result: dict[str, Any] | None = None
 
         self._error_message: str = ""
@@ -78,6 +84,9 @@ class ScheduleService:
             progress=self._progress,
             best_fitness=self._best_fitness,
             message=self._error_message,
+            conflict_details=self._conflict_details,
+            initial_fitness=self._initial_fitness,
+            initial_conflict_details=self._initial_conflict_details,
         )
 
     def generate(self, params: ScheduleRequest) -> ScheduleStatusResponse:
@@ -88,6 +97,9 @@ class ScheduleService:
             self._status = "running"
             self._progress = 0.0
             self._best_fitness = None
+            self._conflict_details = None
+            self._initial_fitness = None
+            self._initial_conflict_details = None
             self._result = None
             self._error_message = ""
             self._fitness_log = []
@@ -180,6 +192,8 @@ class ScheduleService:
             best_guru_ref: np.ndarray | None = None
 
             initial_best = min(hasil_pop, key=lambda x: x["fitness"])
+            initial_fitness = float(initial_best["fitness"])
+            initial_evaluasi = dict(initial_best["evaluasi"])
 
             if initial_best["fitness"] < best_fitness:
 
@@ -192,6 +206,10 @@ class ScheduleService:
                 best_guru_ref = pop_guru[idx].copy()
 
             logger.info("Initial best fitness: %s", best_fitness)
+            with self._lock:
+                if self._current_run_id == current_run_id:
+                    self._initial_fitness = initial_fitness
+                    self._initial_conflict_details = initial_evaluasi
 
             for gen in range(max_iter):
                 if self._cancel_event.is_set():
@@ -367,7 +385,12 @@ class ScheduleService:
 
             result_data = self._format_result(
 
-                best_mapel_ref, best_guru_ref, final_fitness, final_evaluasi
+                best_mapel_ref,
+                best_guru_ref,
+                final_fitness,
+                final_evaluasi,
+                initial_fitness,
+                initial_evaluasi,
 
             )
 
@@ -379,12 +402,15 @@ class ScheduleService:
 
                 total_conflicts=result_data["total_conflicts"],
 
+                conflict_details=result_data.get("conflict_details"),
+
             )
 
             with self._lock:
                 if self._current_run_id == current_run_id:
                     self._progress = 100.0
                     self._best_fitness = final_fitness
+                    self._conflict_details = final_evaluasi
                     self._status = "completed"
                     self._result = result_data
                     if self._cancel_event.is_set():
@@ -422,11 +448,27 @@ class ScheduleService:
 
         evaluasi: dict[str, int],
 
+        initial_fitness: float | None = None,
+
+        initial_evaluasi: dict[str, int] | None = None,
+
     ) -> dict[str, Any]:
 
         detail_per_kelas: list[dict[str, Any]] = []
 
         total_conflict = sum(evaluasi.values())
+        initial_total_conflicts = (
+            sum(initial_evaluasi.values()) if initial_evaluasi is not None else None
+        )
+        fitness_improvement = (
+            (initial_fitness - fitness) if initial_fitness is not None else None
+        )
+        fitness_improvement_percent = None
+        if initial_fitness is not None:
+            if initial_fitness == 0:
+                fitness_improvement_percent = 0.0
+            else:
+                fitness_improvement_percent = (fitness_improvement / initial_fitness) * 100
 
         kelas_ids = self._data_dict.kelas_ids
 
@@ -563,8 +605,15 @@ class ScheduleService:
         return {
 
             "fitness": fitness,
+            "initial_fitness": initial_fitness,
+            "fitness_improvement": fitness_improvement,
+            "fitness_improvement_percent": fitness_improvement_percent,
 
             "total_conflicts": total_conflict,
+            "initial_total_conflicts": initial_total_conflicts,
+
+            "conflict_details": evaluasi,
+            "initial_conflict_details": initial_evaluasi,
 
             "detail_per_kelas": detail_per_kelas,
 
@@ -573,6 +622,17 @@ class ScheduleService:
     def get_saved_schedules(self) -> list[dict[str, Any]]:
 
         return self._schedule_repo.get_all_summaries()
+
+    def get_saved_schedules_paginated(
+        self,
+        page: int = 1,
+        per_page: int = 10,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> tuple[list[dict[str, Any]], int]:
+        return self._schedule_repo.get_all_summaries_paginated(
+            page, per_page, start_date, end_date
+        )
 
     def get_saved_schedule(self, schedule_id: int) -> dict[str, Any]:
 

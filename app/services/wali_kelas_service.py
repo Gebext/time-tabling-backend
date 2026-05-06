@@ -14,6 +14,14 @@ class WaliKelasService:
 
         return [WaliKelasResponse(**row) for row in rows]
 
+    def get_paginated(
+        self, page: int = 1, per_page: int = 10, search: str | None = None
+    ) -> tuple[list[WaliKelasResponse], int]:
+
+        rows, total = self._repo.get_paginated_filtered(page, per_page, search)
+
+        return [WaliKelasResponse(**row) for row in rows], total
+
     def get_by_guru_id(self, guru_id: int) -> WaliKelasResponse:
 
         row = self._repo.get_by_id(guru_id, resource_name="Wali Kelas")

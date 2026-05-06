@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 
 from app.dependencies import get_slot_service
 
-from app.schemas.common import BaseResponse, MessageResponse
+from app.schemas.common import BaseResponse, PaginatedResponse, MessageResponse
 
 from app.schemas.slot import SlotCreate, SlotUpdate, SlotResponse
 
@@ -10,13 +10,18 @@ from app.services.slot_service import SlotService
 
 router = APIRouter(prefix="/slot", tags=["Slot Waktu"])
 
-@router.get("", response_model=BaseResponse[list[SlotResponse]], summary="Get all time slots")
+@router.get("", response_model=PaginatedResponse[SlotResponse], summary="Get all time slots (paginated)")
 
-async def get_all(service: SlotService = Depends(get_slot_service)):
+async def get_all(
+    page: int = Query(1, ge=1),
+    per_page: int = Query(10, ge=1, le=1000),
+    q: str | None = Query(default=None, description="Search query"),
+    service: SlotService = Depends(get_slot_service),
+):
 
-    data = service.get_all()
+    data, total = service.get_paginated(page, per_page, q)
 
-    return BaseResponse(data=data, message=f"Ditemukan {len(data)} slot")
+    return PaginatedResponse(data=data, total=total, page=page, per_page=per_page, message=f"Ditemukan {total} slot")
 
 @router.get("/{slot_id}", response_model=BaseResponse[SlotResponse], summary="Get slot by ID")
 
