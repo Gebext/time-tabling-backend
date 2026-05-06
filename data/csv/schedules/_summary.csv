@@ -1,0 +1,11 @@
+schedule_id,filename,fitness,total_conflicts,created_at,conflict_details
+1,schedule_20260415_221420.csv,12530.0,367,2026-04-15T22:14:20.758695,
+2,schedule_20260415_225511.csv,13880.0,391,2026-04-15T22:55:11.381773,
+3,schedule_20260416_021735.csv,10610.0,367,2026-04-16T02:17:35.458314,
+4,schedule_20260416_162118.csv,2415.0,149,2026-04-16T16:21:18.135846,
+5,schedule_20260416_232324.csv,7005.0,285,2026-04-16T23:23:24.449622,
+6,schedule_20260417_024331.csv,14435.0,303,2026-04-17T02:43:31.177360,
+7,schedule_20260502_184759.csv,9980.0,311,2026-05-02T18:47:59.486975,"{""guruBentrok"": 63, ""distribusiMapel"": 23, ""mapelSiang"": 15, ""durasiGuru"": 53, ""waktuMGMP"": 27, ""cekWaliKelas"": 8, ""konsistensiGuruMapel"": 122}"
+8,schedule_20260502_194553.csv,9995.0,321,2026-05-02T19:45:53.009797,"{""guruBentrok"": 61, ""distribusiMapel"": 24, ""mapelSiang"": 19, ""durasiGuru"": 51, ""waktuMGMP"": 23, ""cekWaliKelas"": 11, ""konsistensiGuruMapel"": 132}"
+9,schedule_20260506_181102.csv,9205.0,305,2026-05-06T18:11:02.680652,"{""guruBentrok"": 57, ""distribusiMapel"": 20, ""mapelSiang"": 22, ""durasiGuru"": 51, ""waktuMGMP"": 33, ""cekWaliKelas"": 8, ""konsistensiGuruMapel"": 114}"
+10,schedule_20260506_182014.csv,8185.0,289,2026-05-06T18:20:14.519831,"{""guruBentrok"": 47, ""distribusiMapel"": 25, ""mapelSiang"": 22, ""durasiGuru"": 62, ""waktuMGMP"": 22, ""cekWaliKelas"": 5, ""konsistensiGuruMapel"": 106}"
